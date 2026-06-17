@@ -15,18 +15,32 @@ const config = require('./config');
  */
 
 /**
- *
- * @param {BullConnectionConfig} connectionConfig
- * @returns {Promise<BullConnectionResult>}
+ * Normalize legacy Redis URLs so Bull can parse them correctly.
+ * @param {string} redisUrl
+ * @returns {string}
  */
+function normalizeRedisUrl(redisUrl) {
+  if (typeof redisUrl !== 'string') return redisUrl;
+  const trimmed = redisUrl.trim();
+  if (trimmed.startsWith('http://')) {
+    return trimmed.replace(/^http:\/\//i, 'redis://');
+  }
+  if (trimmed.startsWith('https://')) {
+    return trimmed.replace(/^https:\/\//i, 'rediss://');
+  }
+  return trimmed;
+}
+
 const createdQueues = new Map();
 function createQueue(connectionConfig = config) {
   const { queueName, url } = connectionConfig;
   if (createdQueues.has(queueName)) {
     return createdQueues.get(queueName);
   }
+
   if (queueName && url) {
-    const newQueue = new Bull(queueName, url);
+    const normalizedUrl = normalizeRedisUrl(url);
+    const newQueue = new Bull(queueName, normalizedUrl);
     createdQueues.set(queueName, newQueue);
     return newQueue;
   }

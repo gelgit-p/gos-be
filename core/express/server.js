@@ -221,12 +221,37 @@ function Server(serverConfig = {}) {
           result = middlewareExecutionContext.result;
         }
 
-        responseComponents.statusCode = result.status || 200;
-        responseComponents.body.status = 'success';
-        responseComponents.body.message = result.message;
-        responseComponents.body.data = result.data || {};
+        if (handlerConfiguration.wrapResponse === false) {
+          responseComponents.statusCode = result?.status || 200;
+          responseComponents.body =
+            result && typeof result === 'object' && 'status' in result && 'data' in result
+              ? result.data
+              : result;
 
-        expressResponse.status(responseComponents.statusCode).json(responseComponents.body);
+          expressResponse.status(responseComponents.statusCode).json(responseComponents.body);
+        } else {
+          responseComponents.statusCode = result.status || 200;
+          const isError = responseComponents.statusCode >= 400;
+          const responseMessage =
+            result.message ||
+            (result.data && typeof result.data === 'object' ? result.data.message : undefined);
+
+          const responseBody = { ...result };
+          delete responseBody.status;
+
+          if (responseBody.data === undefined) {
+            delete responseBody.data;
+          }
+
+          responseBody.status = isError ? 'error' : 'success';
+          if (responseMessage !== undefined) {
+            responseBody.message = responseMessage;
+          }
+
+          responseComponents.body = responseBody;
+
+          expressResponse.status(responseComponents.statusCode).json(responseComponents.body);
+        }
       } catch (error) {
         const statusCode = !error.isApplicationError
           ? 500

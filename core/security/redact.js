@@ -1,4 +1,4 @@
-const { parse, validate } = require('../validator');
+const { parse, validate } = require('@app-core/validator');
 
 const REDACT_FIELDS = {
   password: 1,
@@ -25,7 +25,10 @@ const REDACT_FIELDS = {
  * @property {boolean} removeRedactedFields - A flag to indicate if the redacted fields should be removed from the returned object.
  */
 
-const normKey = (key) => key.replace(/[\W_]+/g, '').toLowerCase();
+const normKey = (key) =>
+  String(key)
+    .replace(/[\W_]+/g, '')
+    .toLowerCase();
 
 /**
  * @callback Redact
