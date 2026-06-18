@@ -6,14 +6,14 @@ const { CreatorCard } = require('../../models');
 // Spec for createCard service
 const createCardSpec = `root {
   title string
-  description string
-  slug string
+  description string?
+  slug string?
   creator_reference string
-  links[] {
+  links[]? {
     title string
     url string
   }
-  service_rates {
+  service_rates? {
     currency string
     rates[] {
       name string
@@ -22,7 +22,7 @@ const createCardSpec = `root {
     }
   }
   status string
-  access_type string
+  access_type string?
 }`;
 
 // Parse the spec outside the service function
@@ -31,26 +31,34 @@ const parsedCreateCardSpec = validator.parse(createCardSpec);
 async function createCard(serviceData) {
   const validatedData = validator.validate(serviceData, parsedCreateCardSpec);
 
-  // check slug uniqueness first
-  const existing = await CreatorCard.findOne({ slug: validatedData.slug });
+  const slug = typeof validatedData.slug === 'string' ? validatedData.slug.trim() : '';
+  const hasSlug = slug.length > 0;
 
-  if (existing) {
-    return {
-      status: 'error',
-      message: 'Slug is already taken',
-      code: 'SL02',
-    };
+  if (hasSlug) {
+    const existing = await CreatorCard.findOne({ slug });
+
+    if (existing) {
+      return {
+        status: 'error',
+        message: 'Slug is already taken',
+        code: 'SL02',
+      };
+    }
+
+    validatedData.slug = slug;
+  } else {
+    delete validatedData.slug;
   }
 
   const newId = ulid();
-
-  const accessCode = ulid().slice(0, 6);
+  const isPublic = validatedData.access_type === 'public';
+  const accessCode = isPublic ? undefined : ulid().slice(0, 6);
 
   const cardData = {
     _id: newId,
     id: newId,
     ...validatedData,
-    access_code: accessCode,
+    ...(!isPublic ? { access_code: accessCode } : {}),
     created: Date.now(),
     updated: Date.now(),
     deleted: 0,
@@ -62,6 +70,10 @@ async function createCard(serviceData) {
 
   response.id = response._id;
   delete response._id;
+
+  if (response.access_type === 'public') {
+    delete response.access_code;
+  }
 
   return response;
 }

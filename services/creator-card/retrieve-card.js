@@ -1,7 +1,7 @@
 const { CreatorCard } = require('../../models');
 
 async function retrieveCard({ slug, accessCode }) {
-  const card = await CreatorCard.findOne({ slug }).lean();
+  const card = await CreatorCard.findOne({ slug, deleted: 0 }).lean();
 
   if (!card) {
     return {
@@ -16,7 +16,7 @@ async function retrieveCard({ slug, accessCode }) {
     return {
       status: 'error',
       statusCode: 404,
-      message: 'Creator card is unavailable',
+      message: 'card exists but its in draft.',
       code: 'NF02',
     };
   }
@@ -36,7 +36,7 @@ async function retrieveCard({ slug, accessCode }) {
         status: 'error',
         statusCode: 403,
         message: 'Invalid access code',
-        code: 'AC045',
+        code: 'AC04',
       };
     }
   }

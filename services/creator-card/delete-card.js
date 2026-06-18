@@ -7,10 +7,13 @@ const deleteCreatorCardSpec = `root {
 
 const parsedDeleteCreatorCardSpec = validator.parse(deleteCreatorCardSpec);
 
-async function deleteCard({ slug, creatorReference }) {
-  const validatedData = validator.validate({ creatorReference }, parsedDeleteCreatorCardSpec);
+async function deleteCard({ slug, creatorReference, creator_reference: creatorReferenceSnake }) {
+  const validatedData = validator.validate(
+    { creator_reference: creatorReference ?? creatorReferenceSnake },
+    parsedDeleteCreatorCardSpec
+  );
 
-  const card = await CreatorCard.findOne({ slug, deleted: 0 });
+  const card = await CreatorCard.findOne({ slug });
 
   if (!card) {
     return {
@@ -21,7 +24,7 @@ async function deleteCard({ slug, creatorReference }) {
     };
   }
 
-  if (card.creator_reference !== validatedData.creatorReference) {
+  if (card.creator_reference !== validatedData.creator_reference) {
     return {
       status: 'error',
       statusCode: 403,

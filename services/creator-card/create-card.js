@@ -1,56 +1,88 @@
 const validator = require('@app-core/validator');
 const { ulid } = require('@app-core/randomness');
 const { CreatorCard } = require('../../models');
-// const { throwAppError } = require('@app-core/errors');
 
 // Spec for createCard service
 const createCardSpec = `root {
   title string
-  description string
-  slug string
+  description? string
+  slug? string
   creator_reference string
-  links[] {
+  links[]? {
     title string
     url string
   }
-  service_rates {
+  service_rates? {
     currency string
-    rates[] {
+    rates[]? {
       name string
       description string
       amount number
     }
   }
-  status string
-  access_type string
+  status string(draft|published)
+  access_type? string
+  access_code? string
 }`;
 
 // Parse the spec outside the service function
 const parsedCreateCardSpec = validator.parse(createCardSpec);
 
 async function createCard(serviceData) {
-  const validatedData = validator.validate(serviceData, parsedCreateCardSpec);
+  const cleanedData = Object.fromEntries(
+    Object.entries(serviceData).filter(([_, v]) => v !== null && v !== undefined)
+  );
 
-  // check slug uniqueness first
-  const existing = await CreatorCard.findOne({ slug: validatedData.slug });
+  const validatedData = validator.validate(cleanedData, parsedCreateCardSpec);
+  // const validatedData = validator.validate(serviceData, parsedCreateCardSpec);
 
-  if (existing) {
+  const isPrivate = validatedData.access_type === 'private';
+  const isPublic = validatedData.access_type === 'public';
+
+  if (
+    isPrivate &&
+    (!validatedData.access_code || String(validatedData.access_code).trim().length === 0)
+  ) {
     return {
       status: 'error',
-      message: 'Slug is already taken',
-      code: 'SL02',
+      message: 'Private creator cards require an access code',
+      code: 'AC01',
     };
   }
 
-  const newId = ulid();
+  if (
+    isPublic &&
+    validatedData.access_code &&
+    String(validatedData.access_code).trim().length > 0
+  ) {
+    return {
+      status: 'error',
+      message: 'Public creator cards must not include an access code',
+      code: 'AC05',
+    };
+  }
 
-  const accessCode = ulid().slice(0, 6);
+  if (validatedData.slug) {
+    const existing = await CreatorCard.findOne({
+      slug: validatedData.slug,
+    });
+
+    if (existing) {
+      return {
+        status: 'error',
+        message: 'Slug is already taken',
+        code: 'SL02',
+      };
+    }
+  }
+
+  const newId = ulid();
+  const accessCode = isPublic ? undefined : validatedData.access_code || ulid().slice(0, 6);
 
   const cardData = {
     _id: newId,
-    id: newId,
     ...validatedData,
-    access_code: accessCode,
+    ...(!isPublic ? { access_code: accessCode } : {}),
     created: Date.now(),
     updated: Date.now(),
     deleted: 0,
@@ -62,6 +94,10 @@ async function createCard(serviceData) {
 
   response.id = response._id;
   delete response._id;
+
+  if (response.access_type === 'public') {
+    delete response.access_code;
+  }
 
   return response;
 }
